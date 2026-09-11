@@ -56,6 +56,7 @@ jobs:
           python -m pip install \
             "anyio==4.14.2" \
             "coverage[toml]>=7.8.2" \
+            "httpx2[zstd]>=2.0.0" \
             "importlib-metadata==9.0.0" \
             "mypy==2.1.0" \
             "pytest==9.1.1" \
@@ -80,13 +81,17 @@ jobs:
           python -m build
           twine check dist/*
 
+      # `--branch` is skipped on Python 3.8/3.9, where coverage.py reports bogus
+      # partial branches across `async for` / `async with` arcs. Upstream carried
+      # the same workaround for Python 3.9.
+      # See https://github.com/Kludex/starlette/issues/2452.
       - name: "Run tests (Python 3.8 & 3.9)"
         if: ${{ matrix.python-version == '3.8' || matrix.python-version == '3.9' }}
         run: python -m coverage run -m pytest tests
 
       - name: "Run tests"
         if: ${{ matrix.python-version != '3.8' && matrix.python-version != '3.9' }}
-        run: python -m coverage run -m pytest tests
+        run: python -m coverage run --branch -m pytest tests
 
       - name: "Enforce coverage (Python 3.8 & 3.9)"
         if: ${{ matrix.python-version == '3.8' || matrix.python-version == '3.9' }}

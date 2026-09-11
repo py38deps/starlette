@@ -130,7 +130,6 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-branch = true
 source_pkgs = ["starlette", "tests"]
 
 [tool.coverage.report]
