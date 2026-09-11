@@ -27,7 +27,7 @@ HTTPX2_DIR="${PY38DEPS_HTTPX2_DIR:-.py38deps/httpx2}"
     "git+https://github.com/py38deps/trio.git@refs/heads/main" \
     "git+https://github.com/py38deps/python-multipart.git@refs/heads/main" \
     "$HTTPX2_DIR/src/httpcore2" \
-    "$HTTPX2_DIR/src/httpx2"
+    "$HTTPX2_DIR/src/httpx2[zstd]"
 
 # The project itself, with the extras the test suite exercises.
 "$PYTHON" -m pip install -e ".[full]"

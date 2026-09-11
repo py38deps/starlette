@@ -51,11 +51,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[full]"
+          # `anyio` is pinned to the version in `uv.lock` because the `mypy==2.1.0`
+          # pin relies on its typing; newer anyio releases change the stubs.
           python -m pip install \
+            "anyio==4.14.2" \
             "coverage[toml]>=7.8.2" \
             "importlib-metadata==9.0.0" \
             "mypy==2.1.0" \
             "pytest==9.1.1" \
+            "pytest-codspeed>=4.1.1" \
             "ruff==0.16.0" \
             "trio==0.33.0" \
             "twine==7.0.0" \
