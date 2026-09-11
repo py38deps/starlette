@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Sequence
-from typing import Any, ParamSpec
+from typing import Any
 
 from starlette._utils import is_async_callable
 from starlette.concurrency import run_in_threadpool
+
+if sys.version_info >= (3, 10):  # pragma: no cover
+    from typing import ParamSpec
+else:  # pragma: no cover
+    from typing_extensions import ParamSpec
 
 P = ParamSpec("P")
 

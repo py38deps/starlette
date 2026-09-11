@@ -4,6 +4,7 @@ import errno
 import importlib.util
 import os
 import stat
+import sys
 from email.utils import parsedate
 from typing import Union
 
@@ -17,6 +18,17 @@ from starlette.responses import FileResponse, RedirectResponse, Response
 from starlette.types import Receive, Scope, Send
 
 PathLike = Union[str, "os.PathLike[str]"]
+
+
+if sys.version_info >= (3, 9):  # pragma: no cover
+
+    def _remove_weak_prefix(tag: str) -> str:
+        return tag.removeprefix("W/")
+
+else:  # pragma: no cover
+
+    def _remove_weak_prefix(tag: str) -> str:
+        return tag[2:] if tag.startswith("W/") else tag
 
 
 class NotModifiedResponse(Response):
@@ -210,7 +222,7 @@ class StaticFiles:
         if if_none_match := request_headers.get("if-none-match"):
             # The "etag" header is added by FileResponse, so it's always present.
             etag = response_headers["etag"]
-            return etag in [tag.strip().removeprefix("W/") for tag in if_none_match.split(",")]
+            return etag in [_remove_weak_prefix(tag.strip()) for tag in if_none_match.split(",")]
 
         try:
             if_modified_since = parsedate(request_headers["if-modified-since"])

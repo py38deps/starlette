@@ -1,6 +1,5 @@
 import sys
-from collections.abc import Callable, Iterable
-from typing import Any
+from typing import Any, Callable, Dict, Iterable
 
 import pytest
 
@@ -9,7 +8,7 @@ from tests.types import TestClientFactory
 
 WSGIResponse = Iterable[bytes]
 StartResponse = Callable[..., Any]
-Environment = dict[str, Any]
+Environment = Dict[str, Any]
 
 
 def hello_world(

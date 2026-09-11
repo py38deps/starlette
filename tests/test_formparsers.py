@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
+import sys
 import threading
 from collections.abc import AsyncGenerator, Generator
 from contextlib import AbstractContextManager, nullcontext as does_not_raise
 from io import BytesIO
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Dict
 from unittest import mock
 
 import pytest
@@ -22,7 +23,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from tests.types import TestClientFactory
 
 
-class ForceMultipartDict(dict[Any, Any]):
+class ForceMultipartDict(Dict[Any, Any]):
     def __bool__(self) -> bool:
         return True
 
@@ -324,7 +325,14 @@ def test_multipart_request_mixed_files_and_data(tmpdir: Path, test_client_factor
     }
 
 
-class ThreadTrackingSpooledTemporaryFile(SpooledTemporaryFile[bytes]):
+# `tempfile.SpooledTemporaryFile` only became subscriptable in Python 3.9.
+if sys.version_info >= (3, 9):  # pragma: no cover
+    _SpooledTemporaryFileBase = SpooledTemporaryFile[bytes]
+else:  # pragma: no cover
+    _SpooledTemporaryFileBase = SpooledTemporaryFile
+
+
+class ThreadTrackingSpooledTemporaryFile(_SpooledTemporaryFileBase):
     """Helper class to track which threads performed the rollover operation.
 
     This is not threadsafe/multi-test safe.
@@ -966,11 +974,10 @@ async def test_multipart_closes_tempfile_on_stream_error() -> None:
         Headers({"Content-Type": "multipart/form-data; boundary=boundary"}),
         stream(),
     )
-    tempfile = SpooledTemporaryFile[bytes]()
+    tempfile = _SpooledTemporaryFileBase()
 
-    with (
-        mock.patch("starlette.formparsers.SpooledTemporaryFile", return_value=tempfile),
-        pytest.raises(RuntimeError, match="stream failed"),
+    with mock.patch("starlette.formparsers.SpooledTemporaryFile", return_value=tempfile), pytest.raises(
+        RuntimeError, match="stream failed"
     ):
         await parser.parse()
 
@@ -983,7 +990,7 @@ def test_multipart_closes_tempfile_on_oserror(
     """Temporary files must be closed when an OSError (e.g. disk full) is raised during parsing."""
     close_called = False
 
-    class FailingSpooledTemporaryFile(SpooledTemporaryFile[bytes]):
+    class FailingSpooledTemporaryFile(_SpooledTemporaryFileBase):
         def write(self, s: Any) -> int:
             raise OSError("disk full")
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import cast
+from typing import Optional, Union, cast
 
 from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException
@@ -69,10 +69,10 @@ class RequestBodyLimitResponder:
         return self._send
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        previous_scope_limit = cast(int | _Missing, scope.get(MAX_BODY_SIZE_SCOPE_KEY, _MISSING))
+        previous_scope_limit = cast(Union[int, _Missing], scope.get(MAX_BODY_SIZE_SCOPE_KEY, _MISSING))
         scope[MAX_BODY_SIZE_SCOPE_KEY] = self.max_body_size
 
-        active_responder = cast(RequestBodyLimitResponder | None, scope.get(_BODY_LIMIT_RESPONDER_SCOPE_KEY))
+        active_responder = cast(Optional[RequestBodyLimitResponder], scope.get(_BODY_LIMIT_RESPONDER_SCOPE_KEY))
         if active_responder is not None:
             active_responder.max_body_size = self.max_body_size
             if active_responder.total_size > active_responder.max_body_size:

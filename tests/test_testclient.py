@@ -168,7 +168,7 @@ def test_error_on_startup(test_client_factory: TestClientFactory) -> None:
     @asynccontextmanager
     async def lifespan(app: Starlette) -> AsyncGenerator[None, None]:
         raise RuntimeError("Startup error")
-        yield
+        yield  # pragma: no cover - unreachable, kept to make `lifespan` an async generator
 
     startup_error_app = Starlette(lifespan=lifespan)
 

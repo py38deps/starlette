@@ -6,6 +6,7 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+  workflow_dispatch:   # manual trigger button on GitHub Actions page
 
 permissions:
   contents: read
@@ -16,35 +17,87 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Set up Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
         with:
           python-version: ${{ matrix.python-version }}
-          enable-cache: true
+
+      # The httpx2/httpcore2 backports live in a `uv` workspace, which cannot be
+      # installed directly from git; check it out next to the test run.
+      - name: Check out the httpx2/httpcore2 backport
+        if: ${{ matrix.python-version == '3.8' || matrix.python-version == '3.9' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: py38deps/httpx2
+          ref: main
+          path: .py38deps/httpx2
+          persist-credentials: false
+
+      - name: Install dependencies (Python 3.8 & 3.9)
+        if: ${{ matrix.python-version == '3.8' || matrix.python-version == '3.9' }}
+        run: scripts/install-py38 python
 
       - name: Install dependencies
-        run: scripts/install
+        if: ${{ matrix.python-version != '3.8' && matrix.python-version != '3.9' }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[full]"
+          python -m pip install \
+            "coverage[toml]>=7.8.2" \
+            "importlib-metadata==9.0.0" \
+            "mypy==2.1.0" \
+            "pytest==9.1.1" \
+            "ruff==0.16.0" \
+            "trio==0.33.0" \
+            "twine==7.0.0" \
+            "types-PyYAML==6.0.12.20250516"
 
       - name: Run linting checks
-        run: scripts/check
-        if: ${{ matrix.python-version != '3.14' }}
+        if: ${{ matrix.python-version != '3.8' && matrix.python-version != '3.9' }}
+        run: |
+          ./scripts/sync-version
+          ruff format --check --diff starlette tests benchmarks
+          mypy starlette tests benchmarks
+          ruff check starlette tests benchmarks
 
-      - name: "Build package & docs"
-        run: scripts/build
+      - name: "Build package"
+        if: ${{ matrix.python-version == '3.14' }}
+        run: |
+          python -m pip install build
+          python -m build
+          twine check dist/*
+
+      - name: "Run tests (Python 3.8 & 3.9)"
+        if: ${{ matrix.python-version == '3.8' || matrix.python-version == '3.9' }}
+        run: python -m coverage run -m pytest tests
 
       - name: "Run tests"
-        run: scripts/test
+        if: ${{ matrix.python-version != '3.8' && matrix.python-version != '3.9' }}
+        run: python -m coverage run -m pytest tests
+
+      - name: "Enforce coverage (Python 3.8 & 3.9)"
+        if: ${{ matrix.python-version == '3.8' || matrix.python-version == '3.9' }}
+        run: python -m coverage report --show-missing --skip-covered --fail-under=100
 
       - name: "Enforce coverage"
-        run: scripts/coverage
+        if: ${{ matrix.python-version != '3.8' && matrix.python-version != '3.9' }}
+        run: python -m coverage report --show-missing --skip-covered --fail-under=100
+
+      - name: Upload dist
+        if: ${{ matrix.python-version == '3.14' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
 
   # https://github.com/marketplace/actions/alls-green#why
   check:
@@ -56,50 +109,3 @@ jobs:
         uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
         with:
           jobs: ${{ toJSON(needs) }}
-
-  docs-cloudflare-preview:
-    name: Docs preview (Cloudflare)
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-
-    env:
-      HAS_CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
-
-    permissions:
-      contents: read
-      pull-requests: write
-
-    environment:
-      name: cloudflare
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-        with:
-          python-version: "3.11"
-          enable-cache: false
-
-      - name: Install dependencies
-        run: scripts/install
-
-      - name: Build docs
-        run: uv run zensical build --clean
-
-      - uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
-        id: deploy
-        if: ${{ env.HAS_CLOUDFLARE_TOKEN == 'true' }}
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: versions upload --tag pr-${{ github.event.pull_request.number }}
-
-      - name: Comment preview URL
-        if: ${{ steps.deploy.outcome == 'success' }}
-        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
-        with:
-          message: |
-            **Docs preview:** ${{ steps.deploy.outputs.deployment-url }}

@@ -6,13 +6,13 @@ import json
 import os
 import stat
 import sys
-from collections.abc import AsyncIterable, Awaitable, Callable, Iterable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import datetime
 from email.utils import format_datetime, formatdate
 from functools import partial
 from mimetypes import guess_type
 from secrets import token_hex
-from typing import Any, Literal
+from typing import Any, AsyncIterable, Iterable, Literal, Union
 from urllib.parse import quote
 
 import anyio
@@ -24,6 +24,29 @@ from starlette.concurrency import iterate_in_threadpool
 from starlette.datastructures import URL, Headers, MutableHeaders
 from starlette.requests import ClientDisconnect
 from starlette.types import Message, Receive, Scope, Send
+
+# Compat wrapper to always include the `usedforsecurity=...` parameter,
+# which is only added from Python 3.9 onwards.
+# We use this flag to indicate that we use `md5` hashes only for non-security
+# cases (our ETag checksums).
+# If we don't indicate that we're using MD5 for non-security related reasons,
+# then attempting to use this function will raise an error when used
+# environments which enable a strict "FIPs mode".
+#
+# See issue: https://github.com/encode/starlette/issues/1365
+try:
+    # check if the Python version supports the parameter
+    # using usedforsecurity=False to avoid an exception on FIPS systems
+    # that reject usedforsecurity=True
+    hashlib.md5(b"data", usedforsecurity=False)
+
+    def md5_hexdigest(data: bytes, *, usedforsecurity: bool = True) -> str:  # pragma: no cover
+        return hashlib.md5(data, usedforsecurity=usedforsecurity).hexdigest()
+
+except TypeError:  # pragma: no cover
+
+    def md5_hexdigest(data: bytes, *, usedforsecurity: bool = True) -> str:
+        return hashlib.md5(data).hexdigest()
 
 
 class Response:
@@ -48,7 +71,7 @@ class Response:
     def render(self, content: Any) -> bytes | memoryview:
         if content is None:
             return b""
-        if isinstance(content, bytes | memoryview):
+        if isinstance(content, (bytes, memoryview)):
             return content
         return content.encode(self.charset)  # type: ignore
 
@@ -213,10 +236,10 @@ class RedirectResponse(Response):
         self.headers["location"] = quote(str(url), safe=":/%#?=@[]!$&'()*+,;")
 
 
-Content = str | bytes | memoryview
+Content = Union[str, bytes, memoryview]
 SyncContentStream = Iterable[Content]
 AsyncContentStream = AsyncIterable[Content]
-ContentStream = AsyncContentStream | SyncContentStream
+ContentStream = Union[AsyncContentStream, SyncContentStream]
 
 
 class StreamingResponse(Response):
@@ -248,7 +271,7 @@ class StreamingResponse(Response):
     async def stream_response(self, send: Send) -> None:
         await send({"type": "http.response.start", "status": self.status_code, "headers": self.raw_headers})
         async for chunk in self.body_iterator:
-            if not isinstance(chunk, bytes | memoryview):
+            if not isinstance(chunk, (bytes, memoryview)):
                 chunk = chunk.encode(self.charset)
             await send({"type": "http.response.body", "body": chunk, "more_body": True})
 
@@ -332,7 +355,7 @@ class FileResponse(Response):
         content_length = str(stat_result.st_size)
         last_modified = formatdate(stat_result.st_mtime, usegmt=True)
         etag_base = str(stat_result.st_mtime) + "-" + str(stat_result.st_size)
-        etag = f'"{hashlib.md5(etag_base.encode(), usedforsecurity=False).hexdigest()}"'
+        etag = f'"{md5_hexdigest(etag_base.encode(), usedforsecurity=False)}"'
 
         self.headers.setdefault("content-length", content_length)
         self.headers.setdefault("last-modified", last_modified)

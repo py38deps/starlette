@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from typing import Any, ParamSpec, TypeVar
+from typing import Any, TypeVar
 
 from starlette.datastructures import State, URLPath
 from starlette.middleware import Middleware, _MiddlewareFactory
@@ -12,6 +13,11 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Router
 from starlette.types import ASGIApp, ExceptionHandler, Lifespan, Receive, Scope, Send
+
+if sys.version_info >= (3, 10):  # pragma: no cover
+    from typing import ParamSpec
+else:  # pragma: no cover
+    from typing_extensions import ParamSpec
 
 AppType = TypeVar("AppType", bound="Starlette")
 P = ParamSpec("P")

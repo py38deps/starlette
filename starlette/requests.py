@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import AsyncGenerator, Iterator, Mapping
+from collections.abc import AsyncGenerator, Iterator
 from http import cookies as http_cookies
-from typing import TYPE_CHECKING, Any, Generic, NoReturn, cast
+from typing import TYPE_CHECKING, Any, Generic, Mapping, NoReturn, Union, cast
 
 import anyio
 
@@ -74,7 +74,7 @@ class ClientDisconnect(Exception):
     pass
 
 
-StateT = TypeVar("StateT", bound=Mapping[str, Any] | State, default=State)
+StateT = TypeVar("StateT", bound=Union[Mapping[str, Any], State], default=State)
 
 
 class HTTPConnection(Mapping[str, Any], Generic[StateT]):

@@ -88,7 +88,7 @@ class SessionMiddleware:
         await self.app(scope, receive, send_wrapper)
 
 
-class Session(dict[str, typing.Any]):
+class Session(typing.Dict[str, typing.Any]):
     accessed: bool = False
     modified: bool = False
 

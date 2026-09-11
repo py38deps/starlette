@@ -7,11 +7,22 @@ import json
 import math
 import sys
 import warnings
-from collections.abc import Awaitable, Callable, Generator, Iterable, Mapping, MutableMapping, Sequence
+from collections.abc import Generator, MutableMapping, Sequence
 from concurrent.futures import Future
-from contextlib import AbstractContextManager
 from types import GeneratorType
-from typing import TYPE_CHECKING, Any, Literal, TypedDict, TypeGuard, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    ContextManager,
+    Iterable,
+    Literal,
+    Mapping,
+    TypedDict,
+    Union,
+    cast,
+)
 from urllib.parse import unquote, urljoin
 
 import anyio
@@ -23,6 +34,11 @@ from starlette._utils import is_async_callable
 from starlette.exceptions import StarletteDeprecationWarning
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from starlette.websockets import WebSocketDisconnect
+
+if sys.version_info >= (3, 10):  # pragma: no cover
+    from typing import TypeGuard
+else:  # pragma: no cover
+    from typing_extensions import TypeGuard
 
 if sys.version_info >= (3, 11):  # pragma: no cover
     from typing import Self
@@ -50,14 +66,14 @@ else:
                 stacklevel=2,
             )
 
-_PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+_PortalFactoryType = Callable[[], ContextManager[anyio.abc.BlockingPortal]]
 
 ASGIInstance = Callable[[Receive, Send], Awaitable[None]]
 ASGI2App = Callable[[Scope], ASGIInstance]
 ASGI3App = Callable[[Scope, Receive, Send], Awaitable[None]]
 
 
-_RequestData = Mapping[str, str | Iterable[str] | bytes]
+_RequestData = Mapping[str, Union[str, Iterable[str], bytes]]
 
 
 def _is_asgi3(app: ASGI2App | ASGI3App) -> TypeGuard[ASGI3App]:

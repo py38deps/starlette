@@ -2,9 +2,18 @@ from __future__ import annotations
 
 import functools
 import sys
-from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from typing import Any, Generic, Protocol, TypeVar, overload
+from collections.abc import AsyncGenerator, Generator
+from contextlib import asynccontextmanager
+from typing import (
+    Any,
+    AsyncContextManager as AbstractAsyncContextManager,
+    Awaitable,
+    Callable,
+    Generic,
+    Protocol,
+    TypeVar,
+    overload,
+)
 
 import anyio.abc
 

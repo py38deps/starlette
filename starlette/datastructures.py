@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import re
-from collections.abc import ItemsView, Iterable, Iterator, KeysView, Mapping, MutableMapping, Sequence, ValuesView
+from collections.abc import ItemsView, Iterable, Iterator, KeysView, MutableMapping, ValuesView
 from shlex import shlex
-from typing import Any, BinaryIO, Literal, NamedTuple, TypeVar, cast
+from typing import Any, BinaryIO, Literal, Mapping, NamedTuple, Sequence, TypeVar, Union, cast
 from urllib.parse import SplitResult, parse_qsl, urlencode, urlsplit
 
 from starlette.concurrency import run_in_threadpool
@@ -479,7 +479,7 @@ class UploadFile:
         return f"{self.__class__.__name__}(filename={self.filename!r}, size={self.size!r}, headers={self.headers!r})"
 
 
-class FormData(ImmutableMultiDict[str, UploadFile | str]):
+class FormData(ImmutableMultiDict[str, Union[UploadFile, str]]):
     """
     An immutable multidict, containing both file uploads and text input.
     """
