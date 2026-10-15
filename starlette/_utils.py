@@ -33,6 +33,18 @@ else:  # pragma: no cover
 if sys.version_info < (3, 11):  # pragma: no cover
     from exceptiongroup import BaseExceptionGroup
 
+if sys.version_info >= (3, 10):  # pragma: no cover
+    from contextlib import aclosing as aclosing
+else:  # pragma: no cover
+
+    @asynccontextmanager
+    async def aclosing(thing: Any) -> AsyncGenerator[Any, None]:
+        """Close `thing` when the block exits, also when it raises."""
+        try:
+            yield thing
+        finally:
+            await thing.aclose()
+
 
 T = TypeVar("T")
 AwaitableCallable = Callable[..., Awaitable[T]]

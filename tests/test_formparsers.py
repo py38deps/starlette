@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import codecs
 import os
 import sys
 import threading
@@ -641,6 +642,41 @@ def test_multipart_request_decodes_charset(
     )
     assert response.status_code == 200
     assert response.json() == {"value": expected}
+
+
+def test_multipart_request_resolves_charset_once(test_client_factory: TestClientFactory) -> None:
+    charset = "starlette-test-invalid-charset"
+    codec_searches: list[str] = []
+
+    def search_codec(encoding: str) -> codecs.CodecInfo | None:
+        codec_searches.append(encoding)
+        return None
+
+    content = (
+        b'--boundary\r\nContent-Disposition: form-data; name="one"\r\n\r\none\r\n'
+        b'--boundary\r\nContent-Disposition: form-data; name="two"\r\n\r\ntwo\r\n'
+        b"--boundary--\r\n"
+    )
+    codecs.register(search_codec)
+    try:
+        client = test_client_factory(app)
+        response = client.post(
+            "/",
+            content=content,
+            headers={"Content-Type": f"multipart/form-data; charset={charset}; boundary=boundary"},
+        )
+    finally:
+        if sys.version_info >= (3, 10):  # pragma: no cover
+            codecs.unregister(search_codec)
+        else:  # pragma: no cover
+            # `codecs.unregister` only exists from Python 3.10 onwards. The search
+            # function returns `None`, so leaving it registered costs a lookup miss
+            # at worst and cannot change the result of any other lookup.
+            pass
+
+    assert response.status_code == 200
+    assert response.json() == {"one": "one", "two": "two"}
+    assert len(codec_searches) == 1
 
 
 @pytest.mark.parametrize(

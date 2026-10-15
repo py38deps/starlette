@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Generic, Mapping, NoReturn, Union, cast
 
 import anyio
 
-from starlette._utils import AwaitableOrContextManager, AwaitableOrContextManagerWrapper
+from starlette._utils import AwaitableOrContextManager, AwaitableOrContextManagerWrapper, aclosing
 from starlette.datastructures import URL, Address, FormData, Headers, QueryParams, State
 from starlette.exceptions import HTTPException
 from starlette.formparsers import FormParser, MultiPartException, MultiPartParser
@@ -254,8 +254,9 @@ class Request(HTTPConnection[StateT]):
     async def body(self) -> bytes:
         if not hasattr(self, "_body"):
             chunks: list[bytes] = []
-            async for chunk in self.stream():
-                chunks.append(chunk)
+            async with aclosing(self.stream()) as stream:
+                async for chunk in stream:
+                    chunks.append(chunk)
             self._body = b"".join(chunks)
         return self._body
 
@@ -281,27 +282,29 @@ class Request(HTTPConnection[StateT]):
             content_type, _ = parse_options_header(content_type_header)
             if content_type == b"multipart/form-data":
                 try:
-                    multipart_parser = MultiPartParser(
-                        self.headers,
-                        self.stream(),
-                        max_files=max_files,
-                        max_fields=max_fields,
-                        max_part_size=max_part_size,
-                    )
-                    self._form = await multipart_parser.parse()
+                    async with aclosing(self.stream()) as stream:
+                        multipart_parser = MultiPartParser(
+                            self.headers,
+                            stream,
+                            max_files=max_files,
+                            max_fields=max_fields,
+                            max_part_size=max_part_size,
+                        )
+                        self._form = await multipart_parser.parse()
                 except MultiPartException as exc:
                     if "app" in self.scope:
                         raise HTTPException(status_code=400, detail=exc.message)
                     raise exc
             elif content_type == b"application/x-www-form-urlencoded":
                 try:
-                    form_parser = FormParser(
-                        self.headers,
-                        self.stream(),
-                        max_fields=max_fields,
-                        max_part_size=max_part_size,
-                    )
-                    self._form = await form_parser.parse()
+                    async with aclosing(self.stream()) as stream:
+                        form_parser = FormParser(
+                            self.headers,
+                            stream,
+                            max_fields=max_fields,
+                            max_part_size=max_part_size,
+                        )
+                        self._form = await form_parser.parse()
                 except MultiPartException as exc:
                     if "app" in self.scope:
                         raise HTTPException(status_code=400, detail=exc.message)
@@ -346,3 +349,8 @@ class Request(HTTPConnection[StateT]):
                 for value in self.headers.getlist(name):
                     raw_headers.append((name.encode("latin-1"), value.encode("latin-1")))
             await self._send({"type": "http.response.push", "path": path, "headers": raw_headers})
+
+    async def send_early_hints(self, link: str, /, *additional_links: str) -> None:
+        if "http.response.early_hint" in self.scope.get("extensions", {}):
+            raw_links = [value.encode("latin-1") for value in (link, *additional_links)]
+            await self._send({"type": "http.response.early_hint", "links": raw_links})

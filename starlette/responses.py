@@ -7,12 +7,13 @@ import os
 import stat
 import sys
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from contextlib import asynccontextmanager
 from datetime import datetime
 from email.utils import format_datetime, formatdate
 from functools import partial
 from mimetypes import guess_type
 from secrets import token_hex
-from typing import Any, AsyncIterable, Iterable, Literal, Union
+from typing import Any, AsyncIterable, AsyncIterator, Iterable, Literal, Union
 from urllib.parse import quote
 
 import anyio
@@ -392,7 +393,7 @@ class FileResponse(Response):
             or http_range is None
             or (http_if_range is not None and not self._should_use_range(http_if_range))
         ):
-            await self._handle_simple(send, send_header_only, send_pathsend)
+            send_file = partial(self._handle_simple, send, send_header_only, send_pathsend)
         else:
             try:
                 ranges = self._parse_range_header(http_range, stat_result.st_size)
@@ -403,15 +404,44 @@ class FileResponse(Response):
                 return await response(scope, receive, send)
 
             if len(ranges) == 0:
-                await self._handle_simple(send, send_header_only, send_pathsend)
+                send_file = partial(self._handle_simple, send, send_header_only, send_pathsend)
             elif len(ranges) == 1:
                 start, end = ranges[0]
-                await self._handle_single_range(send, start, end, stat_result.st_size, send_header_only)
+                send_file = partial(self._handle_single_range, send, start, end, stat_result.st_size, send_header_only)
+                send_pathsend = False
             else:
-                await self._handle_multiple_ranges(send, ranges, stat_result.st_size, send_header_only)
+                send_file = partial(self._handle_multiple_ranges, send, ranges, stat_result.st_size, send_header_only)
+                send_pathsend = False
+
+        spec_version = tuple(map(int, scope.get("asgi", {}).get("spec_version", "2.0").split(".")))
+        if scope_type != "http" or send_header_only or send_pathsend or spec_version >= (2, 4):
+            await send_file()
+        else:
+            async with create_collapsing_task_group() as task_group:
+
+                async def stream_file() -> None:
+                    await send_file()
+                    task_group.cancel_scope.cancel()
+
+                task_group.start_soon(stream_file)
+                while True:
+                    if (await receive())["type"] == "http.disconnect":
+                        task_group.cancel_scope.cancel()
+                        break
 
         if self.background is not None:
             await self.background()
+
+    # TODO: Remove this wrapper once minimum AnyIO includes https://github.com/agronholm/anyio/pull/1314.
+    @asynccontextmanager
+    async def _open_file(self) -> AsyncIterator[anyio.AsyncFile[bytes]]:
+        file = await anyio.open_file(self.path, mode="rb")
+        try:
+            yield file
+        finally:
+            # Closing must finish even when the transfer is cancelled.
+            with anyio.CancelScope(shield=True):
+                await file.aclose()
 
     async def _handle_simple(self, send: Send, send_header_only: bool, send_pathsend: bool) -> None:
         await send({"type": "http.response.start", "status": self.status_code, "headers": self.raw_headers})
@@ -420,7 +450,7 @@ class FileResponse(Response):
         elif send_pathsend:
             await send({"type": "http.response.pathsend", "path": str(self.path)})
         else:
-            async with await anyio.open_file(self.path, mode="rb") as file:
+            async with self._open_file() as file:
                 more_body = True
                 while more_body:
                     chunk = await file.read(self.chunk_size)
@@ -437,7 +467,7 @@ class FileResponse(Response):
         if send_header_only:
             await send({"type": "http.response.body", "body": b"", "more_body": False})
         else:
-            async with await anyio.open_file(self.path, mode="rb") as file:
+            async with self._open_file() as file:
                 await file.seek(start)
                 more_body = True
                 while more_body:
@@ -465,12 +495,14 @@ class FileResponse(Response):
         if send_header_only:
             await send({"type": "http.response.body", "body": b"", "more_body": False})
         else:
-            async with await anyio.open_file(self.path, mode="rb") as file:
+            async with self._open_file() as file:
                 for start, end in ranges:
                     await send({"type": "http.response.body", "body": header_generator(start, end), "more_body": True})
                     await file.seek(start)
                     while start < end:
                         chunk = await file.read(min(self.chunk_size, end - start))
+                        if not chunk:
+                            raise RuntimeError(f"File at path {self.path} is shorter than expected.")
                         start += len(chunk)
                         await send({"type": "http.response.body", "body": chunk, "more_body": True})
                     await send({"type": "http.response.body", "body": b"\r\n", "more_body": True})
@@ -483,6 +515,8 @@ class FileResponse(Response):
                 )
 
     def _should_use_range(self, http_if_range: str) -> bool:
+        if http_if_range.startswith("W/"):
+            return False
         return http_if_range == self.headers["last-modified"] or http_if_range == self.headers["etag"]
 
     @classmethod
