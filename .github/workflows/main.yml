@@ -31,17 +31,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # The httpx2/httpcore2 backports live in a `uv` workspace, which cannot be
-      # installed directly from git; check it out next to the test run.
-      - name: Check out the httpx2/httpcore2 backport
-        if: ${{ matrix.python-version == '3.8' || matrix.python-version == '3.9' }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: py38deps/httpx2
-          ref: main
-          path: .py38deps/httpx2
-          persist-credentials: false
-
       - name: Install dependencies (Python 3.8 & 3.9)
         if: ${{ matrix.python-version == '3.8' || matrix.python-version == '3.9' }}
         run: scripts/install-py38 python

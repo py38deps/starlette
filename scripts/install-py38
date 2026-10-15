@@ -4,30 +4,28 @@ set -x
 
 # Python 3.8/3.9 cannot use `uv sync --frozen` (`uv.lock` is locked for >= 3.10),
 # and several runtime/test dependencies have no PyPI release supporting these
-# interpreters. Install the py38deps backport repos (same versions, widened
-# `requires-python`), then the project and the test dependencies explicitly.
-# Linting and packaging are skipped for these interpreters in CI.
+# interpreters. Install the py38deps backport wheels (same versions, widened
+# `requires-python`) from the py38deps package index, then the project and the
+# test dependencies explicitly. Linting and packaging are skipped for these
+# interpreters in CI.
 #
 # Usage: scripts/install-py38 [path-to-python]
-#
-# The httpx2/httpcore2 backports are installed from a checkout of
-# py38deps/httpx2 (the root of that repository is a `uv` workspace, so it is not
-# installable directly from git); point PY38DEPS_HTTPX2_DIR at the checkout.
 
 PYTHON="${1:-python}"
-HTTPX2_DIR="${PY38DEPS_HTTPX2_DIR:-.py38deps/httpx2}"
 
-# Dependencies without a 3.8/3.9-compatible PyPI release. Refs are pinned to
-# `refs/heads/<branch>` because `@<name>` is interpreted as a tag by pip.
+# PyPI stays the primary index; the extra index serves the backports.
+export PIP_EXTRA_INDEX_URL="https://py38deps.github.io/py38deps/simple/"
+
+# Dependencies without a 3.8/3.9-compatible PyPI release. `httpx2` pins
+# `httpcore2` to the matching backport.
 "$PYTHON" -m pip install \
-    "git+https://github.com/py38deps/anyio.git@refs/heads/master" \
-    "git+https://github.com/py38deps/typing_extensions.git@refs/heads/main" \
-    "git+https://github.com/py38deps/truststore.git@refs/heads/main" \
-    "git+https://github.com/py38deps/idna.git@refs/heads/master" \
-    "git+https://github.com/py38deps/trio.git@refs/heads/main" \
-    "git+https://github.com/py38deps/python-multipart.git@refs/heads/main" \
-    "$HTTPX2_DIR/src/httpcore2" \
-    "$HTTPX2_DIR/src/httpx2[zstd]"
+    "anyio>=4.10" \
+    "typing_extensions>=4.16.0" \
+    "truststore>=0.10" \
+    "idna>=3.18" \
+    "trio>=0.34.0,<1.0" \
+    "python-multipart" \
+    "httpx2[zstd]>=2.0.0"
 
 # The project itself, with the extras the test suite exercises.
 "$PYTHON" -m pip install -e ".[full]"
