@@ -161,7 +161,10 @@ class BaseHTTPMiddleware:
                     elif message["type"] == "http.response.early_hint":
                         await send(message)
                         continue
-                    break
+                    # coverage.py 7.6 (the last release supporting 3.8) does not record
+                    # the `break` that exits a `while True` loop, so the line is excluded
+                    # instead of being reported as uncovered.
+                    break  # pragma: no cover
             except anyio.EndOfStream:
                 if app_exc is not None:
                     nonlocal exception_already_raised
