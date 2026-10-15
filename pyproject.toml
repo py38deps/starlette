@@ -30,10 +30,11 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Internet :: WWW/HTTP",
 ]
 dependencies = [
-    "anyio>=3.6.2,<5",
+    "anyio>=4.0.0,<5",
     "typing_extensions>=4.10.0; python_version < '3.13'",
 ]
 
@@ -41,6 +42,7 @@ dependencies = [
 full = [
     "itsdangerous",
     "jinja2",
+    "opentelemetry-api",
     "python-multipart>=0.0.18",
     "pyyaml",
     "httpx>=0.27.0,<0.29.0",
@@ -52,27 +54,28 @@ dev = [
     # We add starlette[full] so `uv sync` considers the extras.
     "starlette[full]",
     "httpx2[zstd]>=2.0.0",
+    "blockbuster>=1.5.23",
     "coverage>=7.8.2 ; python_version >= '3.9'",
     "coverage>=7.6.1,<7.7 ; python_version < '3.9'",
-    "importlib-metadata==9.0.0 ; python_version >= '3.9'",
-    "importlib-metadata==8.5.0 ; python_version < '3.9'",
-    # Pinned to 2.1.0: mypy 2.2+ no longer honors the tuple return type of `create_memory_object_stream.__new__`.
-    "mypy==2.1.0 ; python_version >= '3.9'",
+    "importlib-metadata>=9.0.1 ; python_version >= '3.10'",
+    "importlib-metadata>=8.5.0,<9 ; python_version < '3.10'",
+    "mypy>=2.3.1 ; python_version >= '3.10'",
+    "opentelemetry-sdk>=1.44.0 ; python_version >= '3.10'",
+    "opentelemetry-sdk>=1.33.1,<1.34 ; python_version < '3.10'",
     "pytest-codspeed>=4.1.1 ; python_version >= '3.9'",
-    "ruff==0.16.0",
-    "types-PyYAML==6.0.12.20250516",
-    "pytest==9.1.1 ; python_version >= '3.10'",
+    "ruff>=0.16.5",
+    "types-PyYAML>=6.0.12.20250516",
+    "pytest>=9.1.1 ; python_version >= '3.10'",
     "pytest>=8.3.5,<9 ; python_version < '3.10'",
-    "trio==0.33.0 ; python_version >= '3.10'",
-    "trio>=0.27.0 ; python_version < '3.10'",
+    "trio>=0.34.0",
     # Check dist
-    "twine==7.0.0 ; python_version >= '3.9'",
-    "twine>=6.1.0,<6.2 ; python_version < '3.9'",
+    "twine>=7.0.0 ; python_version >= '3.10'",
+    "twine>=6.1.0,<7 ; python_version < '3.10'",
 ]
 docs = [
-    "black==26.5.1",
     "mkdocstrings>=1.0.2",
     "mkdocstrings-python>=2.0.1",
+    "ruff>=0.16.5",
     "zensical>=0.0.19",
 ]
 

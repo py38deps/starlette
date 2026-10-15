@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -40,18 +40,20 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[full]"
-          # `anyio` is pinned to the version in `uv.lock` because the `mypy==2.1.0`
-          # pin relies on its typing; newer anyio releases change the stubs.
+          # The versions mirror `uv.lock`; `uv` itself is not usable here because the
+          # backport also builds the wheels for Python 3.8 and 3.9.
           python -m pip install \
             "anyio==4.14.2" \
+            "blockbuster==1.5.27" \
             "coverage[toml]>=7.8.2" \
             "httpx2[zstd]>=2.0.0" \
-            "importlib-metadata==9.0.0" \
-            "mypy==2.1.0" \
+            "importlib-metadata==9.0.1" \
+            "mypy==2.3.1" \
+            "opentelemetry-sdk==1.44.0" \
             "pytest==9.1.1" \
-            "pytest-codspeed>=4.1.1" \
-            "ruff==0.16.0" \
-            "trio==0.33.0" \
+            "pytest-codspeed==5.0.3" \
+            "ruff==0.16.5" \
+            "trio==0.34.0" \
             "twine==7.0.0" \
             "types-PyYAML==6.0.12.20250516"
 
@@ -104,6 +106,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Decide whether the needed jobs succeeded or failed
-        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
+        uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           jobs: ${{ toJSON(needs) }}

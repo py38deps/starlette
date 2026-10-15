@@ -46,6 +46,7 @@ def homepage(request: Request) -> JSONResponse:
         {
             "authenticated": request.user.is_authenticated,
             "user": request.user.display_name,
+            "identity": request.user.identity,
         }
     )
 
@@ -212,11 +213,11 @@ def test_user_interface(test_client_factory: TestClientFactory) -> None:
     with test_client_factory(app) as client:
         response = client.get("/")
         assert response.status_code == 200
-        assert response.json() == {"authenticated": False, "user": ""}
+        assert response.json() == {"authenticated": False, "user": "", "identity": ""}
 
         response = client.get("/", auth=("tomchristie", "example"))
         assert response.status_code == 200
-        assert response.json() == {"authenticated": True, "user": "tomchristie"}
+        assert response.json() == {"authenticated": True, "user": "tomchristie", "identity": "tomchristie"}
 
 
 def test_authentication_required(test_client_factory: TestClientFactory) -> None:
