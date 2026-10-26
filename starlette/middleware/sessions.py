@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import typing
 from base64 import b64decode, b64encode
 from typing import Literal
@@ -134,9 +135,15 @@ class Session(typing.Dict[str, typing.Any]):
         self.mark_modified()
         super().update(*args, **kwargs)
 
-    def __ior__(self, other: typing.Any, /) -> Session:  # type: ignore[override,misc]
-        self.mark_modified()
-        # `dict.__ior__` only exists from Python 3.9 onwards (PEP 584); `update()`
-        # takes the same arguments on every supported version.
-        dict.update(self, other)
-        return self
+    if sys.version_info >= (3, 9):  # pragma: no cover
+        # `dict.__ior__` was added in Python 3.9 (PEP 584).
+        def __ior__(self, other: typing.Any, /) -> Session:  # type: ignore[override,misc]
+            self.mark_modified()
+            return super().__ior__(other)
+
+    else:  # pragma: no cover
+        # `dict.update()` takes the same arguments on every supported version.
+        def __ior__(self, other: typing.Any, /) -> Session:  # type: ignore[override,misc]
+            self.mark_modified()
+            dict.update(self, other)
+            return self
